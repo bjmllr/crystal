@@ -130,13 +130,22 @@ module Spec
     @@instance = RootContext.new
     @@contexts_stack = [@@instance] of Context
 
-    def self.describe(description, file, line)
+    def self.describe(description, file, line, skip = false)
       describe = Spec::NestedContext.new(description, file, line, @@contexts_stack.last)
+      describe.skip = skip
       @@contexts_stack.push describe
       Spec.formatter.push describe
       yield describe
       Spec.formatter.pop
       @@contexts_stack.pop
+    end
+
+    def self.skip?
+      @@contexts_stack.any? &.skip?
+    end
+
+    def skip?
+      false
     end
 
     def self.matches?(description, pattern, line)
@@ -154,6 +163,8 @@ module Spec
     getter description
     getter file
     getter line
+    property? skip
+    @skip = false
 
     def initialize(@description : String, @file, @line, @parent)
     end

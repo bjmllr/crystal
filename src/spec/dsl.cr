@@ -71,6 +71,11 @@ module Spec::DSL
     return if Spec.aborted?
     return unless Spec.matches?(description, file, line)
 
+    if Spec::RootContext.skip?
+      Spec::RootContext.report(:pending, description, file, line)
+      return
+    end
+
     Spec.formatter.before_example description
 
     begin
@@ -106,6 +111,13 @@ module Spec::DSL
   #   end
   # end
   # ```
+  #
+  # The above spec will produce a report that contains output like:
+  #
+  # ```
+  # Pending:
+  #   Array #my_new_method is not implemented yet
+  # ```
   def pending(description, file = __FILE__, line = __LINE__, &block)
     return if Spec.aborted?
     return unless Spec.matches?(description, file, line)
@@ -113,6 +125,61 @@ module Spec::DSL
     Spec.formatter.before_example description
 
     Spec::RootContext.report(:pending, description, file, line)
+  end
+
+  # Define a context that skips all contained specs. Typically used to
+  # identify specs that don't currently pass, but are supposed to pass
+  # eventually. `description` will become part of the description for each
+  # spec in the group. The context must not contain any syntax or type errors,
+  # but it will not actually be run.
+  #
+  # ```
+  # describe "Array" do
+  #   skip "not implemented yet" do
+  #     describe "#my_new_method" do
+  #       it "does something that hasn't yet been implemented" do
+  #         # spec goes here
+  #       end
+  #     end
+  #   end
+  # end
+  # ```
+  #
+  # The above spec will produce a report that contains output like:
+  #
+  # ```
+  # Pending:
+  #   Array (skipped: not implemented yet) #my_new_method does something that hasn't yet been implemented
+  # ```
+  def skip(description, file = __FILE__, line = __LINE__)
+    text = "(skipped: #{description})"
+    Spec::RootContext.describe(text, file, line, skip: true) { |ctx| yield ctx }
+  end
+
+  # Define a test case to be skipped. Typically used to tempoarily disable a
+  # test case that was already defined with `it`.
+  #
+  # ```
+  # describe "Array" do
+  #   describe "#empty?" do
+  #     xit "is not empty if there are elements in the array" do
+  #       # will be skipped
+  #       [1].empty?.should be_false
+  #     end
+  #   end
+  # end
+  # ```
+  #
+  # The above spec will produce a report that contains output like:
+  #
+  # ```
+  # Pending:
+  #   Array #empty? (skipped: temporarily disabled by xit) is not empty if there are elements in the array
+  # ```
+  def xit(description, file = __FILE__, line = __LINE__)
+    skip("temporarily with xit") do
+      it(description.to_s, file, line) { yield }
+    end
   end
 
   # Define a test case. Typically used when a test case only contains one
